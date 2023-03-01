@@ -1,0 +1,328 @@
+---
+title: "English Premier League: Home Advantage Real or Fake?"
+author: "Amir Taherian, David Giardino, Manan Goyal, Carlos Guzman-Cruz"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      error = TRUE, fig.height = 3)
+library(tidyverse)
+library(lubridate)
+library(ggplot2)
+library(scales)
+library(modelr)
+```
+
+# Introduction
+
+- Our team is interested in looking at the soccer data sets because of the upcoming FIFA world cup. Therefore we wanted to identify the influencing factors of the team's overall success. We then wanted to look specifically at how home-field advantage influences the game's result. Therefore we asked ourselves: is home advantage real? Is home advantage a good predictor of success? Before we continue, though, we need to define our metrics and words. Our team has defined the home-field advantage as a percentage of the total wins won at home. We then define success as the team's final position, based on the team's final points at the end of each season in the league. In simple terms, our team will first look at whether home-field advantage exists via a difference in a proportions hypothesis test and then at how it (if it does exists) influences the team's success in the end via linear regression and residual graph. Our experiment will focus on the Premier League's 2009-2019 seasons. Our team has conclusively found that home advantage is real in the Premier League and a statistically valid form of predicting success. 
+
+
+
+# Background
+
+### Datahub Data
+- Our data originated from dataHub, from: https://datahub.io/sports-data/english-premier-league#resource-english-premier-league_zip The data is broken into 10 distinct csv files from which there exists between (62-78) column fields, as in later years more data was collected, data was collected after the games and were calculated and filled in correspondingly.
+
+#### Variables from datahub
+- **Div**: This variable is the division the game occured in.
+- **Season**: In the year in which the games took place.
+- **Date**: The specific day, month, year the game occured.
+- **HomeTeam**: The name of the home team.
+- **AwayTeam**: The name of the away team.
+- **FTHG(Full Time Home Goals)**: The number of goals the home team scored.
+- **FTAG(Full Time Away Goals)**: The number of goals the away team scored.
+- **FTR(Full Time Result)**: The winner of the game("A" for away winner, "H" for home winner)
+
+### Kaggle Data
+- Our team had to use a secondary data set because the original data set from DataHub did not include the final position and point of the teams in the Premier League. Source: https://www.kaggle.com/datasets/quadeer15sh/premier-league-standings-11-seasons-20102021 From this data set we are only interested in the Season, Team, Points, Position(in the League). Our team came to a small issue when trying to combine the data from the different sites, as in one of them the names were slightly different as in one used the full names and the other abbreviations so we had to change it. Once we have our compiled data sets, we then focused on the proportions hypothesis test(to proof home advantage), and the linear regression and the graphing the residual. These tests and models then allowed to conclusively determine that home advantage IS real, and that a linear model is appropriate to use as a determiner for success. 
+
+
+# Analysis
+```{r, echo=FALSE}
+## This part is not necessary to show to the viewer
+## Reading all of the different seasons and game information
+season_18_19 = read_csv("season-1819_csv.csv") %>% 
+  select(Div, Date, HomeTeam, AwayTeam, FTHG, FTAG, FTR, HTHG, HTAG, HTR) %>% 
+  mutate(Season = "2018/19") %>% 
+  relocate(Div, Season)
+season_17_18 = read_csv("season-1718_csv.csv") %>% 
+  select(Div, Date, HomeTeam, AwayTeam, FTHG, FTAG, FTR, HTHG, HTAG, HTR) %>% 
+  mutate(Season = "2017/18") %>% 
+  relocate(Div, Season)
+season_16_17 = read_csv("season-1617_csv.csv") %>% 
+  select(Div, Date, HomeTeam, AwayTeam, FTHG, FTAG, FTR, HTHG, HTAG, HTR) %>% 
+  mutate(Season = "2016/17") %>% 
+  relocate(Div, Season)
+season_15_16 = read_csv("season-1516_csv.csv") %>% 
+  select(Div, Date, HomeTeam, AwayTeam, FTHG, FTAG, FTR, HTHG, HTAG, HTR) %>% 
+  mutate(Season = "2015/16") %>% 
+  relocate(Div, Season)
+season_14_15 = read_csv("season-1415_csv.csv") %>% 
+  select(Div, Date, HomeTeam, AwayTeam, FTHG, FTAG, FTR, HTHG, HTAG, HTR) %>% 
+  mutate(Season = "2014/15") %>% 
+  relocate(Div, Season)
+season_13_14 = read_csv("season-1314_csv.csv") %>% 
+  select(Div, Date, HomeTeam, AwayTeam, FTHG, FTAG, FTR, HTHG, HTAG, HTR) %>% 
+  mutate(Season = "2013/14") %>% 
+  relocate(Div, Season)
+season_12_13 = read_csv("season-1213_csv.csv") %>% 
+  select(Div, Date, HomeTeam, AwayTeam, FTHG, FTAG, FTR, HTHG, HTAG, HTR) %>% 
+  mutate(Season = "2012/13") %>% 
+  relocate(Div, Season)
+season_11_12 = read_csv("season-1112_csv.csv") %>% 
+  select(Div, Date, HomeTeam, AwayTeam, FTHG, FTAG, FTR, HTHG, HTAG, HTR) %>% 
+  mutate(Season = "2011/12") %>% 
+  relocate(Div, Season)
+season_10_11 = read_csv("season-1011_csv.csv") %>% 
+  select(Div, Date, HomeTeam, AwayTeam, FTHG, FTAG, FTR, HTHG, HTAG, HTR) %>% 
+  mutate(Season = "2010/11") %>% 
+  relocate(Div, Season)
+season_09_10 = read_csv("season-0910_csv.csv") %>% 
+  mutate(Date = as.character(Date)) %>% 
+  select(Div, Date, HomeTeam, AwayTeam, FTHG, FTAG, FTR, HTHG, HTAG, HTR) %>% 
+  mutate(Season = "2009/10") %>% 
+  relocate(Div, Season)
+
+## Combine all the data sets into one file. 
+combined_df = season_18_19 %>% 
+  full_join(season_17_18) %>% 
+  full_join(season_16_17) %>% 
+  full_join(season_15_16) %>% 
+  full_join(season_14_15) %>% 
+  full_join(season_13_14) %>% 
+  full_join(season_12_13) %>% 
+  full_join(season_11_12) %>% 
+  full_join(season_10_11) %>% 
+  full_join(season_09_10)
+
+## Combined DF
+#combined_df 
+
+```
+
+```{r, echo=FALSE}
+## Preparing for the hypothesis test
+home_win = combined_df %>%
+  group_by(HomeTeam, Season) %>%
+  rename(Team = HomeTeam) %>%
+  summarize(home_games_played = n(),
+            home_games_win = sum(FTR == "H"),
+            home_win_percentage = 100*home_games_win / home_games_played)
+
+away_win = combined_df %>%
+  group_by(AwayTeam, Season) %>%
+  rename(Team = AwayTeam) %>%
+  summarize(away_games_played = n(),
+            away_games_win = sum(FTR == "A"),
+            away_win_percentage = 100*away_games_win / away_games_played)
+## Difference of home - away and join
+allSeasons = left_join(home_win,
+                       away_win,
+                       by = c("Team", "Season"))
+allSeasons = allSeasons %>%
+  mutate(difference = home_win_percentage - away_win_percentage)
+
+all_seasons_summarized = allSeasons %>%
+  summarize(allhome = sum(home_games_win),
+            allaway = sum(away_games_win))
+
+allSeasons
+```
+
+- Our team worked to combine all the data on all the teams and all the 10 seasons from 2009-2019. We then wanted to find the percentages of those teams in those season to which they won at home and won away, not including the draws and losses. With this we then have a nice data frame to summarize and let us prepare for our Hypothesis test, bar graph, and linear model.
+
+
+```{r, echo=FALSE}
+all_seasons_summarized
+```
+
+- The summary above has all of the teams in all of the seasons to which they won at home and won away. With this data frame we can then prepare for our null hypothesis and statistical model. 
+
+## Bar graph
+```{r, echo=FALSE}
+## Small bar graph of the win home and win away
+winsHomeAway = combined_df %>%
+  summarize(
+            home_games_win = sum(FTR == "H"),
+            away_games_win = sum(FTR == "A"),
+            sumBoth = home_games_win + away_games_win)
+
+sumBothWins = winsHomeAway$sumBoth
+statsHome = combined_df %>%
+  summarize(
+            home_games_win = sum(FTR == "H"),
+            home_win_percentage = 100*home_games_win / winsHomeAway$sumBoth)
+statsAway = combined_df %>%
+  summarize(
+            away_games_win = sum(FTR == "A"),
+            away_win_percentage = 100*away_games_win /  winsHomeAway$sumBoth)
+
+
+data_plot = tibble(condition= c("Home","Away"),
+                       percent = c(statsHome$home_win_percentage, statsAway$away_win_percentage    ))
+  
+graph = data_plot %>% 
+  ggplot(aes(x = condition, y = percent)) +
+  geom_bar(stat="identity", fill="lightblue") +
+  xlab("Condition") +
+  ylab("Win Percentage") +
+  ggtitle("Win percentage by type")
+graph
+
+```
+
+- This graph above shows the percentages of winning at either home or away. From which we can see that there is clearly a skew to home in winnings. Therefore, we will next perform a hypothesis test to prove it statistically.
+
+## Hypothesis Test 
+
+### Stastical Model
+
+  - $P_{\text{home}} = \frac{Won_{\text{home}}}{Total_{\text{home}}}$ is the proportion of home games won
+  - $P_{\text{away}} = \frac{Won_{\text{away}}}{Total_{\text{away}}}$ is the proportion of away games won
+  
+### State Hypothesis
+$$
+H_0: P_{\text{home}} = P_{\text{away}} \\
+H_a: P_{\text{home}} - P_{\text{away}} > 0  
+$$
+
+- The null hypothesis is there is no difference proportion of wins whether a team plays at home or not.
+- The alternative hypothesis is that there is a difference
+
+### Test statistic
+
+The difference between $\hat{p}_1 - \hat{p}_2$
+
+- If the null hypothesis is true, we expect this statistic to be close to zero with differences caused by random sampling variation
+- If the null hypothesis is false, then we expect this statistic to be different from zero
+
+### Null distribution
+- If the null hypothesis is true, then $P_{\text{home}} = P_{\text{away}}$ the distribution of the test statistic is whatever it is when $X_{\text{home}}$ and $X_{\text{away}}$ are drawn from normal distributions with the same success probability $p$.
+
+```{r, echo=FALSE}
+naway = 1900
+nhome = 1900
+xhome = allSeasons %>%
+  summarize(allhome = sum(home_games_win)) %>% pull(allhome)
+xaway = allSeasons %>%
+  summarize(allaway = sum(away_games_win)) %>% pull(allaway)
+xhome = sum(xhome)
+xaway = sum(xaway)
+test_stat = (xhome/nhome) - (xaway/naway)
+p0 = (xhome + xaway)/(nhome + naway)
+se = sqrt( p0*(1-p0)/nhome + p0*(1-p0)/naway )
+z = test_stat / se
+
+pvalue_z = 2*pnorm(-abs(z))
+pvalue_z
+```
+- Our $\bar{p}$ = 2.65e^-134 which is reveals that the chance of them both being the same value is close to zero, and also that there IS statistically significant evidence that home-field advantage exists.
+
+
+```{r, echo=FALSE}
+## Reading the League standings.
+standings = read_csv("EPL Standings 2000-2022.csv") %>% 
+  select(Season, Pos,Pts, Team) %>% 
+  filter(Season == "2009-10" | Season == "2010-11" | Season == "2011-12" | Season == "2012-13" | Season == "2013-14" |
+           Season == "2014-15" |Season == "2015-16" |Season == "2016-17" | Season == "2017-18" | Season == "2018-19") %>% 
+  mutate(Season = str_replace(Season, "-", "/"))
+
+#standings
+home_win = combined_df %>%
+  group_by(HomeTeam, Season) %>%
+  summarize(home_games_played = n(),
+            home_games_win = sum(FTR == "H"),
+            home_win_percentage = 100*home_games_win / home_games_played) %>% 
+  mutate(HomeTeam = str_replace(HomeTeam, "Man United", "Manchester United"),
+         HomeTeam = str_replace(HomeTeam, "Man City", "Manchester City"),
+         HomeTeam = str_replace(HomeTeam, "Tottenham", "Tottenham Hotspur"),
+         HomeTeam = str_replace(HomeTeam, "Birmingham", "Birmingham City"),
+         HomeTeam = str_replace(HomeTeam, "Blackburn", "Blackburn Rovers"),
+         HomeTeam = str_replace(HomeTeam, "Stoke", "Stoke City"),
+         HomeTeam = str_replace(HomeTeam, "Bolton", "Bolton Wanderers"),
+         HomeTeam = str_replace(HomeTeam, "Wolves", "Wolverhampton Wanderers"),
+         HomeTeam = str_replace(HomeTeam, "Wigan", "Wigan Athletic"),
+         HomeTeam = str_replace(HomeTeam, "West Ham", "West Ham United"),
+         HomeTeam = str_replace(HomeTeam, "Hull", "Hull City"),
+         HomeTeam = str_replace(HomeTeam, "West Brom", "West Bromwich Albion"),
+         HomeTeam = str_replace(HomeTeam, "Newcastle", "Newcastle United"),
+         HomeTeam = str_replace(HomeTeam, "Swansea", "Swansea City"),
+         HomeTeam = str_replace(HomeTeam, "Norwich", "Norwich City"),
+         HomeTeam = str_replace(HomeTeam, "QPR", "Queen Park Rangers"),
+         HomeTeam = str_replace(HomeTeam, "Cardiff", "Cardiff City"),
+         HomeTeam = str_replace(HomeTeam, "Leicester", "Leicester City"),
+         HomeTeam = str_replace(HomeTeam, "Brighton", "Brighton & Hove Albion"),
+         HomeTeam = str_replace(HomeTeam, "Huddersfield", "Huddersfield Town"))
+#home_win
+table = standings %>% 
+  left_join(home_win, by = c("Team" = "HomeTeam", "Season" = "Season"))
+table = table %>% 
+  select(Season, Pos,Team,Pts, home_win_percentage)
+#table
+
+
+```
+
+```{r, echo=FALSE}
+## Preparing for linear regression
+linear_model = lm(Pts ~ home_win_percentage, data = table)
+coefficients = coef(linear_model)
+table <- table %>%
+  add_residuals(linear_model) %>%
+  add_predictions(linear_model)
+table
+
+ggplot(table, aes(x = home_win_percentage, y =  Pts)) +
+  geom_point() +
+  geom_smooth(se = FALSE, method = "lm") + 
+  ylab("Points") +
+  xlab("Home Win Percentage")
+```
+- Once we have proven home-field advantage is real we can then move on to create a linear model to use home-field advantage to predict final position based on their final points in the Premier League. The linear summary found above predicts the final points which predict the final position of the teams based on their home-field advantage. We can then extract the residuals from the lm() function, which we can the graph to show if home advantage can be an appropriate model for league position based on the shape of the graph- ie is the layout of the residuals random.
+
+
+
+```{r, echo=FALSE}
+ggplot(table, aes(x= home_win_percentage, y=resid)) +
+  geom_point() +
+  xlab("Home Win Percentage") +
+  ylab("Residual (Points)") +
+  geom_hline(aes(yintercept = 0), color = "red", linetype = "dashed") +
+  theme_bw() +
+  theme(text=element_text(size=20)) +
+  geom_smooth(se=FALSE)
+```
+
+
+- The graph above shows the residual between home advantage and final points in the Premier League. In which we had originally called success. From the graph there is no clear pattern, therefore we can conclude that the use of a linear model is appropriate to use in our analysis.
+
+
+# Discussion
+  
+
+### Interpretation of Analysis
+
+- After data cleaning and our analysis, we can see a home advantage in the Premier League from our bar graph, and thus, we worked to prove it mathematically. Once we sorted that data into the data frames we wanted and did our hypothesis test; we could statistically confirm it exists (given that the p-value is 2.65e^-134). Therefore, we moved forward to testing if we could use home advantages to predict the standing overall based on their final points in the Premier League ie, create a model. We then used a linear regression model between home-field advantage and position; then, we looked at the residuals of the model to which we found were random and allowed to prove it was an appropriate model to use.
+
+
+
+### Potential Short Comings
+
+- Part of our shortcomings is that we are trying to ask a question about soccer in general, not just in the Premier League. We acknowledge that different leagues play differently and have different access to economic income and support from their hometown. However, seeing as the Premier League is one of the most popular, well-funded leagues, we decided to use this to create broad generalizations. Our team also acknowledges that our data is slightly small, a few thousand data points, but we know that it was enough to produce good models. When it comes to the data, we acknowledge that the data is as concise as the authors of the data can be. Still, different sites, and different data forums collect data differently, and the chance for a small error in the data collection can come, but our team tried our best to mitigate that. 
+
+
+### Future Directions
+
+- Our curiosities lead us to see if other metrics can lead to success, such as looking at away winning percentages, then looking at their teams' economic support to predict the league's success. Another interesting metric is to look at the halftime results and use that to predict the outcome of a game and then look at it to forecast the position in the league. Many teams could perform better when cornered or, conversely, perform better when confident in their performance. We also came up with a way to make our test more universal by considering looking at different leagues in different countries and comparing them.
+
+
+
+### Summary of Findings and Final Conclusions
+
+- In conclusion our team has looked at the Premiere League and proved conclusively that there does exist a home advantage, and that this home advantage is a good metric to predict success of a team. All of these conclusions came from looking at hypothesis testing and linear regression models (residuals).  
+
+# References
+>[https://stats.stackexchange.com/questions/74525/p-value-of-hypothesis-a-home-court-advantage-exists.]
+
